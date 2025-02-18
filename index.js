@@ -1,11 +1,12 @@
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
-const cors = require('cors'); // Import CORS
+const cors = require('cors');
+const {resolve} = require("node:path"); // Import CORS
 
 // init db
 const sql3 = require("sqlite3").verbose();
-const db = new sql3.Database("./test.sqlite", sql3.OPEN_READWRITE, (err) => {
+const db = new sql3.Database(resolve(__dirname, "./test.sqlite"), sql3.OPEN_READWRITE, (err) => {
     if (err) {
         console.error(err);
     }
