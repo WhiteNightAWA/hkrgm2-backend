@@ -13,7 +13,9 @@ const db = new sql3.Database("./test.sqlite", sql3.OPEN_READWRITE, (err) => {
 
 // Middleware to parse JSON bodies
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: [(!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? "http://localhost:5173" : "https://whitenightawa.github.io"], optionsSuccessStatus: 200
+}));
 
 // Sample route
 app.get('/', (req, res) => {
