@@ -1,0 +1,20 @@
+const temp = {
+    "maimaidx": [12, "Prism", 6],
+    "chunithm": [4, "Luminous Plus", 6],
+    "taiko": [3, "虹", 6],
+    "gc": [1, "4EX", 6],
+    "wacca": [4, "reserve", 4],
+    "db": [1, "?", 4],
+    "diva": [1, "Future Tone", 5],
+}
+    "sdvx": [1, "Exceed Gear", 6],
+    "iidx": [1, "32 Pinky Crush", 8],
+    "jubeat": [3, "festo", 6],
+    "ddr": [1, "WORLD", 10],
+    "pnm": [1, "Jam&Fizz", 6],
+    "rb": [1, "悠久のリフレシア", 6],
+    "gtdr_gf": [1, "V7", 3],
+    "gtdr_dm": [1, "V7", 3],
+    "de": [1, "-", 6],
+    "taiko_old": [1, "13", 3],
+}
