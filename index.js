@@ -81,6 +81,7 @@ app.post('/login', async (req, res) => {
         res.cookie("_hkrgm_at", tokens.accessToken, {
             httpOnly: true,
             secure: true,
+            sameSite: 'none',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 1d
         }).json(ud);
     });
