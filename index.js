@@ -124,7 +124,7 @@ app.post("/comment/summit/:id", authenticateToken, (req, res) => {
             FROM ratings
             WHERE targetId = ?
               AND userid = ?`, [req.params.id, req.user.id], (err, rows) => {
-        if (err) return res.sendStatus(400);
+        if (err) return res.status(400).send(err);
         if (!rows) {
             // new
             insertData({...req.body, userid: req.user.id, targetId: req.params.id}, "ratings");
@@ -133,7 +133,7 @@ app.post("/comment/summit/:id", authenticateToken, (req, res) => {
             db.run("UPDATE ratings SET (rating, smoke, people, comments) = (?, ?, ?, ?) WHERE targetId = ? AND userid = ?",
                 [...Object.values(req.body), req.params.id, req.user.id],
                 (err) => {
-                    if (err) return res.sendStatus(400);
+                    if (err) return res.status(400).send(err);
                     return res.sendStatus(200);
                 })
         }
