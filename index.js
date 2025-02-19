@@ -80,7 +80,7 @@ app.post('/login', async (req, res) => {
                 VALUES ('${tokens.refreshToken}')`);
         res.cookie("_hkrgm_at", tokens.accessToken, {
             httpOnly: true,
-            secure: false,
+            secure: true,
             maxAge: 30 * 24 * 60 * 60 * 1000 // 1d
         }).json(ud);
     });
