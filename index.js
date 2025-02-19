@@ -151,7 +151,7 @@ app.get('/', (req, res) => {
 app.get('/places/all', (req, res) => {
     db.all("SELECT * FROM places", (err, rows) => {
         if (err) res.error(err);
-        res.setHeader("Access-Control-Allow-Origin", "").json(rows);
+        res.json(rows);
     });
 });
 
