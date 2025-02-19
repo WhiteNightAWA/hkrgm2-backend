@@ -20,21 +20,15 @@ const db = new sql3.Database(resolve(__dirname, "./test.sqlite"), sql3.OPEN_READ
 
 // Middleware to parse JSON bodies
 app.use(express.json());
-app.use(cors({
-    optionsSuccessStatus: 200,
-    origin: function (origin, callback) {
-        if (!origin ||  [(!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? "http://localhost:5173" : "https://whitenightawa.github.io"].indexOf(origin) !== -1) {
-            callback(null, origin); // Allow the origin
-        } else {
-            callback(new Error('Not allowed by CORS')); // Block the origin
-        }
-    },
-    credentials: true
-}));
-
 app.use(bodyParser.json());
 app.use(cookieParser());
-
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', "https://whitenightawa.github.io"); // Replace with your actual origin
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.header('Access-Control-Allow-Credentials', 'true'); // Allow credentials
+    next(); // Pass control to the next middleware or route handler
+});
 
 const generateTokens = (user) => {
     const accessToken = jwt.sign({id: user.id}, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '30d'});
@@ -157,7 +151,7 @@ app.get('/', (req, res) => {
 app.get('/places/all', (req, res) => {
     db.all("SELECT * FROM places", (err, rows) => {
         if (err) res.error(err);
-        res.json(rows);
+        res.setHeader("Access-Control-Allow-Origin", "").json(rows);
     });
 });
 
