@@ -21,10 +21,17 @@ const db = new sql3.Database(resolve(__dirname, "./test.sqlite"), sql3.OPEN_READ
 // Middleware to parse JSON bodies
 app.use(express.json());
 app.use(cors({
-    origin: [(!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? "http://localhost:5173" : "https://whitenightawa.github.io"],
     optionsSuccessStatus: 200,
+    origin: function (origin, callback) {
+        if (!origin ||  [(!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? "http://localhost:5173" : "https://whitenightawa.github.io"].indexOf(origin) !== -1) {
+            callback(null, origin); // Allow the origin
+        } else {
+            callback(new Error('Not allowed by CORS')); // Block the origin
+        }
+    },
     credentials: true
 }));
+
 app.use(bodyParser.json());
 app.use(cookieParser());
 
