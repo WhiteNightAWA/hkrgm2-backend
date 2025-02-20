@@ -1,34 +1,30 @@
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
-const cors = require('cors');
+    const cors = require('cors');
 const {resolve} = require("node:path");
 const {get} = require("axios");
 const bodyParser = require("express");
 const jwt = require('jsonwebtoken');
 const cookieParser = require("cookie-parser");
 require("dotenv").config();
+const { Database } = require('@sqlitecloud/drivers');
+
 
 
 // init db
-const sql3 = require("sqlite3").verbose();
-const db = new sql3.Database(resolve(__dirname, "./test.sqlite"), sql3.OPEN_READWRITE, (err) => {
-    if (err) {
-        console.error(err);
-    }
-});
+const db = new Database(process.env.DATABASE_URL);
 
 // Middleware to parse JSON bodies
 app.use(express.json());
+app.use(cors({
+    origin: [(!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? "http://localhost:5173" : "https://whitenightawa.github.io"],
+    optionsSuccessStatus: 200,
+    credentials: true,
+}));
 app.use(bodyParser.json());
 app.use(cookieParser());
-app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', "https://whitenightawa.github.io"); // Replace with your actual origin
-    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.header('Access-Control-Allow-Credentials', 'true'); // Allow credentials
-    next(); // Pass control to the next middleware or route handler
-});
+
 
 const generateTokens = (user) => {
     const accessToken = jwt.sign({id: user.id}, process.env.ACCESS_TOKEN_SECRET, {expiresIn: '30d'});
@@ -38,19 +34,16 @@ const generateTokens = (user) => {
 };
 
 function insertData(data, table) {
-    db.serialize(() => {
 
-        const keys = Object.keys(data);
-        const placeholders = keys.map(() => '?').join(', ');
-        const insertSQL = `INSERT INTO ${table} (${keys.join(', ')})
-                           VALUES (${placeholders})`;
-        const stmt = db.prepare(insertSQL);
+    const keys = Object.keys(data);
+    const placeholders = keys.map(k => '?').join(', ');
+    const insertSQL = `INSERT INTO ${table} (${keys.join(', ')})
+                       VALUES (${placeholders})`;
 
-        const values = keys.map(key => data[key] !== null ? data[key] : null);
-        stmt.run(values);
+    const values = keys.map(key => data[key] !== null ? data[key] : null);
 
-        stmt.finalize();
-    });
+    console.log(insertSQL, values);
+    db.prepare(insertSQL).bind(...values).run();
 }
 
 
@@ -112,27 +105,24 @@ app.get('/user/info', authenticateToken, (req, res) => {
 });
 
 app.get("/comment/check/:id", authenticateToken, (req, res) => {
-    db.get(`SELECT *
-            FROM ratings
-            WHERE targetId = ?
-              AND userid = ?`, [req.params.id, req.user.id], (err, rows) => {
+    console.log(req.params.id, req.user.id)
+    db.get(`SELECT * FROM ratings WHERE targetId = '${req.params.id}' AND userid = '${req.user.id}';`, (err, rows) => {
         if (err) return res.sendStatus(400);
         return rows ? res.status(200).json(rows) : res.sendStatus(400);
     });
 });
+
 app.post("/comment/summit/:id", authenticateToken, (req, res) => {
-    db.get(`SELECT *
-            FROM ratings
-            WHERE targetId = ?
-              AND userid = ?`, [req.params.id, req.user.id], (err, rows) => {
+    db.get(`SELECT * FROM ratings WHERE targetId = '${req.params.id}' AND userid = '${req.user.id}';`, (err, rows) => {
         if (err) return res.status(400).send(err);
         if (!rows) {
             // new
             insertData({...req.body, userid: req.user.id, targetId: req.params.id}, "ratings");
             return res.sendStatus(200);
         } else {
-            db.run("UPDATE ratings SET (rating, smoke, people, comments) = (?, ?, ?, ?) WHERE targetId = ? AND userid = ?",
-                [...Object.values(req.body), req.params.id, req.user.id],
+            const { rating, smoke, people, comments } = req.body;
+            db.run(`UPDATE ratings SET (rating, smoke, people, comments) = ('${rating}', '${smoke}', '${people}', '${comments}') 
+               WHERE targetId = '${req.params.id}' AND userid = '${req.user.id}';`,
                 (err) => {
                     if (err) return res.status(400).send(err);
                     return res.sendStatus(200);
@@ -157,9 +147,7 @@ app.get('/places/all', (req, res) => {
 
 app.get('/places/:id', (req, res) => {
     const {id} = req.params;
-    db.get(`SELECT *
-            FROM places
-            WHERE id = '${id}'`, (err, rows) => {
+    db.get(`SELECT * FROM places WHERE id = '${id}';`, (err, rows) => {
         if (err) res.error(err);
         res.json(rows);
     });
