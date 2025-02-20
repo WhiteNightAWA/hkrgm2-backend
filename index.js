@@ -54,10 +54,11 @@ app.post('/login', async (req, res) => {
     if (response.status !== 200) res.send(response);
     const userdata = response.data;
     console.log(userdata);
-    db.get(`SELECT count(*)
+    db.get(`SELECT count(*) as c
             FROM users
             WHERE id = '${userdata.sub}'`, (err, rows) => {
         if (err) res.send(err);
+        console.log(rows.c);
 
         const ud = {
             id: userdata.sub,
@@ -65,8 +66,8 @@ app.post('/login', async (req, res) => {
             avatar: userdata.picture,
             email: userdata.email,
         };
-        if (rows["'count(*)'"] === 0) {
-            // register
+        if (rows["c"] === 0) {
+            console.log("registering");
             insertData(ud, "users");
         }
         const tokens = generateTokens(ud);
