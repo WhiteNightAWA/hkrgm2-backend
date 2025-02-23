@@ -1,15 +1,14 @@
 const express = require('express');
 const app = express();
 const PORT = process.env.PORT || 3000;
-    const cors = require('cors');
+const cors = require('cors');
 const {resolve} = require("node:path");
 const {get} = require("axios");
 const bodyParser = require("express");
 const jwt = require('jsonwebtoken');
 const cookieParser = require("cookie-parser");
 require("dotenv").config();
-const { Database } = require('@sqlitecloud/drivers');
-
+const {Database} = require('@sqlitecloud/drivers');
 
 
 // init db
@@ -24,6 +23,10 @@ app.use(cors({
 }));
 app.use(bodyParser.json());
 app.use(cookieParser());
+app.use((err, req, res, next) => {
+    console.error('An error occurred:', err);
+    res.status(500).json({error: 'Internal server error'});
+});
 
 
 const generateTokens = (user) => {
@@ -46,6 +49,16 @@ function insertData(data, table) {
     db.prepare(insertSQL).bind(...values).run();
 }
 
+const authenticateToken = (req, res, next) => {
+    const token = req.cookies._hkrgm_at;
+    if (!token) return res.sendStatus(401); // Unauthorized
+
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
+        if (err) return res.sendStatus(403); // Forbidden
+        req.user = user;
+        next();
+    });
+};
 
 app.post('/login', async (req, res) => {
     const response = await get('https://www.googleapis.com/oauth2/v3/userinfo',
@@ -71,8 +84,6 @@ app.post('/login', async (req, res) => {
             insertData(ud, "users");
         }
         const tokens = generateTokens(ud);
-        db.run(`INSERT INTO rt (rt)
-                VALUES ('${tokens.refreshToken}')`);
         res.cookie("_hkrgm_at", tokens.accessToken, {
             httpOnly: true,
             secure: true,
@@ -81,18 +92,9 @@ app.post('/login', async (req, res) => {
         }).json(ud);
     });
 });
-
-
-const authenticateToken = (req, res, next) => {
-    const token = req.cookies._hkrgm_at;
-    if (!token) return res.sendStatus(401); // Unauthorized
-
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
-        if (err) return res.sendStatus(403); // Forbidden
-        req.user = user;
-        next();
-    });
-};
+app.post("/logout", authenticateToken, (req, res) => {
+    res.clearCookie("_hkrgm_at").sendStatus(200);
+})
 
 
 // Protected route
@@ -107,23 +109,31 @@ app.get('/user/info', authenticateToken, (req, res) => {
 
 app.get("/comment/check/:id", authenticateToken, (req, res) => {
     console.log(req.params.id, req.user.id)
-    db.get(`SELECT * FROM ratings WHERE targetId = '${req.params.id}' AND userid = '${req.user.id}';`, (err, rows) => {
+    db.get(`SELECT *
+            FROM ratings
+            WHERE targetId = '${req.params.id}'
+              AND userid = '${req.user.id}';`, (err, rows) => {
         if (err) return res.sendStatus(400);
         return rows ? res.status(200).json(rows) : res.sendStatus(400);
     });
 });
 
 app.post("/comment/summit/:id", authenticateToken, (req, res) => {
-    db.get(`SELECT * FROM ratings WHERE targetId = '${req.params.id}' AND userid = '${req.user.id}';`, (err, rows) => {
+    db.get(`SELECT *
+            FROM ratings
+            WHERE targetId = '${req.params.id}'
+              AND userid = '${req.user.id}';`, (err, rows) => {
         if (err) return res.status(400).send(err);
         if (!rows) {
             // new
             insertData({...req.body, userid: req.user.id, targetId: req.params.id}, "ratings");
             return res.sendStatus(200);
         } else {
-            const { rating, smoke, people, comments } = req.body;
-            db.run(`UPDATE ratings SET (rating, smoke, people, comments) = ('${rating}', '${smoke}', '${people}', '${comments}') 
-               WHERE targetId = '${req.params.id}' AND userid = '${req.user.id}';`,
+            const {rating, smoke, people, comments} = req.body;
+            db.run(`UPDATE ratings
+                    SET (rating, smoke, people, comments) = ('${rating}', '${smoke}', '${people}', '${comments}')
+                    WHERE targetId = '${req.params.id}'
+                      AND userid = '${req.user.id}';`,
                 (err) => {
                     if (err) return res.status(400).send(err);
                     return res.sendStatus(200);
@@ -132,7 +142,6 @@ app.post("/comment/summit/:id", authenticateToken, (req, res) => {
     });
 
 });
-
 
 // Sample route
 app.get('/', (req, res) => {
@@ -148,7 +157,9 @@ app.get('/places/all', (req, res) => {
 
 app.get('/places/:id', (req, res) => {
     const {id} = req.params;
-    db.get(`SELECT * FROM places WHERE id = '${id}';`, (err, rows) => {
+    db.get(`SELECT *
+            FROM places
+            WHERE id = '${id}';`, (err, rows) => {
         if (err) res.error(err);
         res.json(rows);
     });
