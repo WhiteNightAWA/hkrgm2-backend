@@ -97,6 +97,14 @@ app.post("/logout", authenticateToken, (req, res) => {
 })
 
 
+app.get("/anns", async (req, res) => {
+    db.get(`SELECT * FROM anns`, (err, rows) => {
+        if (err) res.status(400).send(err);
+        res.json(rows);
+    })
+});
+
+
 // Protected route
 app.get('/user/info', authenticateToken, (req, res) => {
     db.get(`SELECT *
