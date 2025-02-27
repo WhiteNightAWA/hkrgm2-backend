@@ -36,12 +36,13 @@ const generateTokens = (user) => {
     return {accessToken, refreshToken};
 };
 
-function insertData(data, table) {
+function insertData(data, table, update=null) {
 
     const keys = Object.keys(data);
     const placeholders = keys.map(k => '?').join(', ');
-    const insertSQL = `INSERT INTO ${table} (${keys.join(', ')})
-                       VALUES (${placeholders})`;
+    const insertSQL = update !== null
+        ? `Update ${table} SET (${keys.join(', ')}) = (${placeholders}) WHERE ${update}`
+        : `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
 
     const values = keys.map(key => data[key] !== null ? data[key] : null);
 
@@ -172,6 +173,24 @@ app.get('/places/:id', (req, res) => {
         res.json(rows);
     });
 })
+
+app.post("/places/update/:id", (req, res) => {
+    const {id} = req.params;
+    const {data} = req.body;
+    const authHeader = req.headers.authorization;
+
+    if (!data) return res.sendStatus(400);
+
+    if (!authHeader.startsWith("Bearer ")) return res.sendStatus(401);
+    const token = authHeader.substring(7, authHeader.length);
+
+    jwt.verify(token, process.env.REFRESH_TOKEN_SECRET, (err, user) => {
+        if (err) return res.sendStatus(401); // Forbidden
+
+        insertData(data, "places", `id = '${id}'`)
+        return res.sendStatus(200);
+    });
+});
 
 app.get("/comments/:id", (req, res) => {
     const {id} = req.params;
