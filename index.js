@@ -17,7 +17,10 @@ const db = new Database(process.env.DATABASE_URL);
 // Middleware to parse JSON bodies
 app.use(express.json());
 app.use(cors({
-    origin: [(!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? "http://localhost:5173" : "https://whitenightawa.github.io"],
+    origin: [
+        (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? "http://localhost:5173" : "https://whitenightawa.github.io",
+        "http://localhost:5173/hkrgm2/"
+    ],
     optionsSuccessStatus: 200,
     credentials: true,
 }));
@@ -36,13 +39,16 @@ const generateTokens = (user) => {
     return {accessToken, refreshToken};
 };
 
-function insertData(data, table, update=null) {
+function insertData(data, table, update = null) {
 
     const keys = Object.keys(data);
     const placeholders = keys.map(k => '?').join(', ');
     const insertSQL = update !== null
-        ? `Update ${table} SET (${keys.join(', ')}) = (${placeholders}) WHERE ${update}`
-        : `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+        ? `Update ${table}
+           SET (${keys.join(', ')}) = (${placeholders})
+           WHERE ${update}`
+        : `INSERT INTO ${table} (${keys.join(', ')})
+           VALUES (${placeholders})`;
 
     const values = keys.map(key => data[key] !== null ? data[key] : null);
 
@@ -99,7 +105,8 @@ app.post("/logout", authenticateToken, (req, res) => {
 
 
 app.get("/anns", async (req, res) => {
-    db.all(`SELECT *, DATETIME(time,'localtime','+8 hours') as time FROM anns`, (err, rows) => {
+    db.all(`SELECT *, DATETIME(time, 'localtime', '+8 hours') as time
+            FROM anns`, (err, rows) => {
         if (err) res.status(400).send(err);
         res.json(rows);
     })
@@ -118,7 +125,7 @@ app.get('/user/info', authenticateToken, (req, res) => {
 
 app.get("/comment/check/:id", authenticateToken, (req, res) => {
     console.log(req.params.id, req.user.id)
-    db.get(`SELECT *, DATETIME(time,'localtime','+8 hours') as time
+    db.get(`SELECT *, DATETIME(time, 'localtime', '+8 hours') as time
             FROM ratings
             WHERE targetId = '${req.params.id}'
               AND userid = '${req.user.id}';`, (err, rows) => {
@@ -166,7 +173,7 @@ app.get('/places/all', (req, res) => {
 
 app.get('/places/:id', (req, res) => {
     const {id} = req.params;
-    db.get(`SELECT *, DATETIME(last_edit,'localtime','+8 hours') as last_edit
+    db.get(`SELECT *, DATETIME(last_edit, 'localtime', '+8 hours') as last_edit
             FROM places
             WHERE id = '${id}';`, (err, rows) => {
         if (err) res.error(err);
