@@ -18,8 +18,7 @@ const db = new Database(process.env.DATABASE_URL);
 app.use(express.json());
 app.use(cors({
     origin: [
-        (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? "http://localhost:5173" : "https://whitenightawa.github.io",
-        "http://localhost:5173/hkrgm2/"
+        (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? "http://localhost:5174" : "https://whitenightawa.github.io"
     ],
     optionsSuccessStatus: 200,
     credentials: true,
@@ -166,7 +165,7 @@ app.get('/', (req, res) => {
 
 app.get('/places/all', (req, res) => {
     db.all("SELECT * FROM places", (err, rows) => {
-        if (err) res.error(err);
+        if (err) res.status(503).json(err);
         res.json(rows);
     });
 });
@@ -176,7 +175,7 @@ app.get('/places/:id', (req, res) => {
     db.get(`SELECT *, DATETIME(last_edit, 'localtime', '+8 hours') as last_edit
             FROM places
             WHERE id = '${id}';`, (err, rows) => {
-        if (err) res.error(err);
+        if (err) res.status(503).json(err);
         res.json(rows);
     });
 })
@@ -205,7 +204,7 @@ app.get("/comments/:id", (req, res) => {
             FROM ratings
                      JOIN users ON ratings.userid = users.id
             WHERE ratings.targetId = '${id}'`, (err, rows) => {
-        if (err) res.error(err);
+        if (err) res.status(503).json(err);
         res.json(rows);
     });
 });
