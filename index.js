@@ -14,21 +14,22 @@ const {Database} = require('@sqlitecloud/drivers');
 // init db
 const db = new Database(process.env.DATABASE_URL);
 
+// Require the cloudinary library
+const cloudinary = require('cloudinary').v2;
+cloudinary.config({
+    secure: true
+});
+
 // Middleware to parse JSON bodies
-app.use(express.json());
+app.use(express.json({limit: '50mb'}));
 app.use(cors({
-    origin: [
-        (!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? "http://localhost:5174" : "https://whitenightawa.github.io"
-    ],
+    origin: [(!process.env.NODE_ENV || process.env.NODE_ENV === 'development') ? "http://localhost:5173" : "https://whitenightawa.github.io"],
     optionsSuccessStatus: 200,
     credentials: true,
 }));
-app.use(bodyParser.json());
+app.use(bodyParser.json({limit: '50mb'}));
+app.use(bodyParser.urlencoded({limit: '50mb', extended: true}));
 app.use(cookieParser());
-app.use((err, req, res, next) => {
-    console.error('An error occurred:', err);
-    res.status(500).json({error: 'Internal server error'});
-});
 
 
 const generateTokens = (user) => {
@@ -38,16 +39,12 @@ const generateTokens = (user) => {
     return {accessToken, refreshToken};
 };
 
-function insertData(data, table, update = null) {
+function insertData(data, table) {
 
     const keys = Object.keys(data);
     const placeholders = keys.map(k => '?').join(', ');
-    const insertSQL = update !== null
-        ? `Update ${table}
-           SET (${keys.join(', ')}) = (${placeholders})
-           WHERE ${update}`
-        : `INSERT INTO ${table} (${keys.join(', ')})
-           VALUES (${placeholders})`;
+    const insertSQL = `INSERT INTO ${table} (${keys.join(', ')})
+                       VALUES (${placeholders})`;
 
     const values = keys.map(key => data[key] !== null ? data[key] : null);
 
@@ -55,16 +52,6 @@ function insertData(data, table, update = null) {
     db.prepare(insertSQL).bind(...values).run();
 }
 
-const authenticateToken = (req, res, next) => {
-    const token = req.cookies._hkrgm_at;
-    if (!token) return res.sendStatus(401); // Unauthorized
-
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
-        if (err) return res.sendStatus(403); // Forbidden
-        req.user = user;
-        next();
-    });
-};
 
 app.post('/login', async (req, res) => {
     const response = await get('https://www.googleapis.com/oauth2/v3/userinfo',
@@ -90,6 +77,8 @@ app.post('/login', async (req, res) => {
             insertData(ud, "users");
         }
         const tokens = generateTokens(ud);
+        db.run(`INSERT INTO rt (rt)
+                VALUES ('${tokens.refreshToken}')`);
         res.cookie("_hkrgm_at", tokens.accessToken, {
             httpOnly: true,
             secure: true,
@@ -98,18 +87,18 @@ app.post('/login', async (req, res) => {
         }).json(ud);
     });
 });
-app.post("/logout", authenticateToken, (req, res) => {
-    res.clearCookie("_hkrgm_at").sendStatus(200);
-})
 
 
-app.get("/anns", async (req, res) => {
-    db.all(`SELECT *, DATETIME(time, 'localtime', '+8 hours') as time
-            FROM anns`, (err, rows) => {
-        if (err) res.status(400).send(err);
-        res.json(rows);
-    })
-});
+const authenticateToken = (req, res, next) => {
+    const token = req.cookies._hkrgm_at;
+    if (!token) return res.sendStatus(401); // Unauthorized
+
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
+        if (err) return res.sendStatus(403); // Forbidden
+        req.user = user;
+        next();
+    });
+};
 
 
 // Protected route
@@ -122,10 +111,10 @@ app.get('/user/info', authenticateToken, (req, res) => {
     })
 });
 
-app.get("/comment/check/:id", authenticateToken, (req, res) => {
+app.get("/comments/check/:id", authenticateToken, (req, res) => {
     console.log(req.params.id, req.user.id)
-    db.get(`SELECT *, DATETIME(time, 'localtime', '+8 hours') as time
-            FROM ratings
+    db.get(`SELECT *
+            FROM comments
             WHERE targetId = '${req.params.id}'
               AND userid = '${req.user.id}';`, (err, rows) => {
         if (err) return res.sendStatus(400);
@@ -133,30 +122,64 @@ app.get("/comment/check/:id", authenticateToken, (req, res) => {
     });
 });
 
-app.post("/comment/summit/:id", authenticateToken, (req, res) => {
+app.post("/comments/summit/:id", authenticateToken, (req, res) => {
     db.get(`SELECT *
-            FROM ratings
+            FROM comments
             WHERE targetId = '${req.params.id}'
-              AND userid = '${req.user.id}';`, (err, rows) => {
+              AND userid = '${req.user.id}';`, async (err, rows) => {
         if (err) return res.status(400).send(err);
         if (!rows) {
             // new
-            insertData({...req.body, userid: req.user.id, targetId: req.params.id}, "ratings");
+
+            // Uploading images
+            const images = [];
+            try {
+                for (let image of req.body.images) {
+                    const base64Data = image.dataURL.replace(/^data:image\/\w+;base64,/, '');
+                    const result = await cloudinary.uploader.upload(`data:image/png;base64,${base64Data}`);
+                    images.push(result.public_id);
+                    console.log(result);
+                }
+            } catch (error) {
+                console.error(error);
+            }
+
+            insertData({
+                ...req.body,
+                userid: req.user.id,
+                targetId: req.params.id,
+                images: JSON.stringify(images),
+            }, "comments");
             return res.sendStatus(200);
         } else {
-            const {rating, smoke, people, comments} = req.body;
-            db.run(`UPDATE ratings
-                    SET (rating, smoke, people, comments) = ('${rating}', '${smoke}', '${people}', '${comments}')
-                    WHERE targetId = '${req.params.id}'
-                      AND userid = '${req.user.id}';`,
-                (err) => {
-                    if (err) return res.status(400).send(err);
-                    return res.sendStatus(200);
-                })
+
         }
     });
 
 });
+
+app.get("/ratings/:id", (req, res) => {
+    const {id} = req.params;
+    db.all(`SELECT ratings.*, users.username, users.avatar
+            FROM ratings
+                     JOIN users ON ratings.userid = users.id
+            WHERE ratings.targetId = '${id}'`, (err, rows) => {
+        if (err) res.error(err);
+        res.json(rows);
+    });
+});
+
+app.get("/comments/:id", (req, res) => {
+    const {id} = req.params;
+    db.all(`SELECT comments.*, users.username, users.avatar
+            FROM comments
+                     JOIN users ON comments.userid = users.id
+            WHERE comments.targetId = '${id}'`, (err, rows) => {
+        if (err) res.send(err);
+        res.json(rows);
+    });
+});
+
 
 // Sample route
 app.get('/', (req, res) => {
@@ -165,49 +188,22 @@ app.get('/', (req, res) => {
 
 app.get('/places/all', (req, res) => {
     db.all("SELECT * FROM places", (err, rows) => {
-        if (err) res.status(503).json(err);
+        if (err) res.send(err);
         res.json(rows);
     });
 });
 
 app.get('/places/:id', (req, res) => {
     const {id} = req.params;
-    db.get(`SELECT *, DATETIME(last_edit, 'localtime', '+8 hours') as last_edit
+    db.get(`SELECT *
             FROM places
             WHERE id = '${id}';`, (err, rows) => {
-        if (err) res.status(503).json(err);
+        if (err) res.send(err);
         res.json(rows);
     });
 })
 
-app.post("/places/update/:id", (req, res) => {
-    const {id} = req.params;
-    const {data} = req.body;
-    const authHeader = req.headers.authorization;
 
-    if (!data) return res.sendStatus(400);
-
-    if (!authHeader.startsWith("Bearer ")) return res.sendStatus(401);
-    const token = authHeader.substring(7, authHeader.length);
-
-    jwt.verify(token, process.env.REFRESH_TOKEN_SECRET, (err, user) => {
-        if (err) return res.sendStatus(401); // Forbidden
-
-        insertData(data, "places", `id = '${id}'`)
-        return res.sendStatus(200);
-    });
-});
-
-app.get("/comments/:id", (req, res) => {
-    const {id} = req.params;
-    db.all(`SELECT ratings.*, users.username, users.avatar
-            FROM ratings
-                     JOIN users ON ratings.userid = users.id
-            WHERE ratings.targetId = '${id}'`, (err, rows) => {
-        if (err) res.status(503).json(err);
-        res.json(rows);
-    });
-});
 
 
 // Start the server
