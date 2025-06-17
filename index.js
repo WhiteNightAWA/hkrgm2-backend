@@ -41,10 +41,16 @@ const generateTokens = (user) => {
 };
 
 function updateDatabase(data, table) {
-    const values = Object.entries(data).map(([key, value]) => `'${key}' = '${isJson(value) ? JSON.stringify(value) : value}'`).join(', ');
-    const cmd = `UPDATE ${table} SET ${values} WHERE id = '${data.id}';`;
-    db.run(cmd);
-    return true
+    try {
+        const values = Object.entries(data).map(([key, value]) => `'${key}' = '${isJson(value) ? JSON.stringify(value) : value}'`).join(', ');
+        const cmd = `UPDATE ${table} SET ${values} WHERE id = '${data.id}';`;
+        console.log(cmd);
+        db.run(cmd);
+        return true
+    } catch (err) {
+        console.error(err);
+        return false;
+    }
 }
 
 function insertData(data, table) {
