@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const cookieParser = require("cookie-parser");
 require("dotenv").config();
 const {Database} = require('@sqlitecloud/drivers');
+const {isJson} = require("./function");
 
 
 // init db
@@ -39,16 +40,23 @@ const generateTokens = (user) => {
     return {accessToken, refreshToken};
 };
 
-function insertData(data, table) {
+function updateDatabase(data, table) {
+    const values = Object.entries(data).map(([key, value]) => `'${key}' = '${isJson(value) ? JSON.stringify(value) : value}'`).join(', ');
+    const cmd = `UPDATE ${table} SET ${values} WHERE id = '${data.id}';`;
+    db.run(cmd);
+    return true
+}
 
+function insertData(data, table) {
     const keys = Object.keys(data);
-    const placeholders = keys.map(k => '?').join(', ');
-    const insertSQL = `INSERT INTO ${table} (${keys.join(', ')})
-                       VALUES (${placeholders})`;
+    const placeholders = keys.map(_ => '?').join(', ');
+    const id = data.id;
+
+    const insertSQL =  `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+
 
     const values = keys.map(key => data[key] !== null ? data[key] : null);
 
-    console.log(insertSQL, values);
     db.prepare(insertSQL).bind(...values).run();
 }
 
@@ -59,12 +67,10 @@ app.post('/login', async (req, res) => {
     );
     if (response.status !== 200) res.send(response);
     const userdata = response.data;
-    console.log(userdata);
     db.get(`SELECT count(*) as c
             FROM users
             WHERE id = '${userdata.sub}'`, (err, rows) => {
         if (err) res.send(err);
-        console.log(rows.c);
 
         const ud = {
             id: userdata.sub,
@@ -73,7 +79,6 @@ app.post('/login', async (req, res) => {
             email: userdata.email,
         };
         if (rows["c"] === 0) {
-            console.log("registering");
             insertData(ud, "users");
         }
         const tokens = generateTokens(ud);
@@ -95,8 +100,10 @@ const authenticateToken = (req, res, next) => {
 
     jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
         if (err) return res.sendStatus(403); // Forbidden
-        req.user = user;
-        next();
+        db.get(`SELECT * FROM users WHERE id = "${user.id}"`, (err, rows) => {
+            req.user = rows;
+            next();
+        });
     });
 };
 
@@ -112,7 +119,6 @@ app.get('/user/info', authenticateToken, (req, res) => {
 });
 
 app.get("/comments/check/:id", authenticateToken, (req, res) => {
-    console.log(req.params.id, req.user.id)
     db.get(`SELECT *
             FROM comments
             WHERE targetId = '${req.params.id}'
@@ -138,7 +144,6 @@ app.post("/comments/summit/:id", authenticateToken, (req, res) => {
                     const base64Data = image.dataURL.replace(/^data:image\/\w+;base64,/, '');
                     const result = await cloudinary.uploader.upload(`data:image/png;base64,${base64Data}`);
                     images.push(result.public_id);
-                    console.log(result);
                 }
             } catch (error) {
                 console.error(error);
@@ -203,7 +208,18 @@ app.get('/places/:id', (req, res) => {
     });
 })
 
-
+app.post("/places/update", authenticateToken, (req, res) => {
+    if (!req.user.admin) return res.sendStatus(403);
+    updateDatabase({
+        ...req.body.data,
+    }, "places").then((result) => {
+        if (result) {
+            return res.sendStatus(200);
+        } else {
+            return res.sendStatus(400);
+        }
+    });
+});
 
 
 // Start the server
