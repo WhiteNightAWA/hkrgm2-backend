@@ -210,15 +210,14 @@ app.get('/places/:id', (req, res) => {
 
 app.post("/places/update", authenticateToken, (req, res) => {
     if (!req.user.admin) return res.sendStatus(403);
-    updateDatabase({
+    const result = updateDatabase({
         ...req.body.data,
-    }, "places").then((result) => {
-        if (result) {
-            return res.sendStatus(200);
-        } else {
-            return res.sendStatus(400);
-        }
-    });
+    }, "places");
+    if (result) {
+        return res.sendStatus(200);
+    } else {
+        return res.sendStatus(400);
+    }
 });
 
 
