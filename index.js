@@ -42,6 +42,7 @@ const generateTokens = (user) => {
 
 function updateDatabase(data, table) {
     try {
+        delete data.distance;
         const values = Object.entries(data).map(([key, value]) => `'${key}' = '${isJson(value) ? JSON.stringify(value) : value}'`).join(', ');
         const cmd = `UPDATE ${table} SET ${values} WHERE id = '${data.id}';`;
         console.log(cmd);
