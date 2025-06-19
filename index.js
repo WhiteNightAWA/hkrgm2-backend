@@ -217,7 +217,7 @@ app.get('/places/:id', (req, res) => {
 app.post("/places/update", authenticateToken, (req, res) => {
     if (!req.user.admin) return res.sendStatus(403);
     const result = updateDatabase({
-        ...req.body.data,
+        ...req.body,
     }, "places");
     if (result) {
         return res.sendStatus(200);
